@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TopSep Desktop — Szyfrowany Komunikator z Serwerami i Głosem</title>
+    <meta name="description" content="TopSep Desktop - Nowoczesny, zaszyfrowany komunikator z serwerami, czatami E2EE i rozmowami głosowymi.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- PeerJS for Real-time P2P Live Messaging & Voice Calls -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <!-- PWA Web Application Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#00f2fe">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="theme-cyan electron-app">
+    <!-- Desktop Application Frame / Top Bar -->
+    <div class="desktop-titlebar">
+        <div class="titlebar-drag-area">
+            <i data-lucide="shield-check" class="titlebar-icon"></i>
+            <span class="titlebar-text">TopSep Desktop v2.5 PRO — 🔒 Szyfrowany End-to-End</span>
+        </div>
+        <div class="titlebar-controls">
+            <button class="win-btn" id="win-min" title="Minimalizuj"><i data-lucide="minus"></i></button>
+            <button class="win-btn" id="win-max" title="Maksymalizuj"><i data-lucide="square"></i></button>
+            <button class="win-btn win-close" id="win-close" title="Zamknij"><i data-lucide="x"></i></button>
+        </div>
+    </div>
+
+    <!-- Main App Container -->
+    <div id="app" class="app-container">
+        
+        <!-- Far Left Server Bar (Discord Style) -->
+        <nav class="server-bar" id="server-bar">
+            <!-- Home Direct Messages Icon -->
+            <button class="server-btn active" id="server-home" data-server-id="home" title="Wiadomości Prywatne i Znajomi">
+                <i data-lucide="message-square"></i>
+                <span class="server-pill"></span>
+            </button>
+
+            <div class="server-divider"></div>
+
+            <!-- Servers List (Populated via JS) -->
+            <div class="server-list" id="server-list">
+                <!-- Dynamic server icons -->
+            </div>
+
+            <!-- Add New Server Button -->
+            <button class="server-btn btn-add-server" id="btn-open-add-server" title="Stwórz Nowy Serwer">
+                <i data-lucide="plus"></i>
+            </button>
+        </nav>
+
+        <!-- Sidebar Left: Navigation & Channels -->
+        <aside class="sidebar" id="sidebar">
+            <!-- App / Server Header -->
+            <div class="sidebar-header">
+                <div class="brand">
+                    <div class="brand-text">
+                        <span class="brand-name" id="sidebar-title">Główny Serwer</span>
+                        <span class="brand-badge" id="sidebar-badge">E2EE 🔒</span>
+                    </div>
+                </div>
+                <div class="header-tools">
+                    <button class="btn-icon btn-pulse-live" id="btn-live-p2p" title="Połącz na żywo z kolegą (P2P)">
+                        <i data-lucide="radio"></i>
+                    </button>
+                    <button class="btn-icon" id="btn-settings" title="Ustawienia">
+                        <i data-lucide="settings"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- User Status Card -->
+            <div class="user-card" id="user-card-trigger">
+                <div class="avatar-wrapper">
+                    <img id="user-avatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80" alt="Twój avatar">
+                    <span class="status-indicator online" id="user-status-dot"></span>
+                </div>
+                <div class="user-info">
+                    <h4 id="user-name">Alex Vane</h4>
+                    <p id="user-status-text">Dostępny | Szyfrowany aktywne 🔒</p>
+                </div>
+                <i data-lucide="chevron-down" class="user-chevron"></i>
+            </div>
+
+            <!-- Global Search Input -->
+            <div class="sidebar-search">
+                <i data-lucide="search" class="search-icon"></i>
+                <input type="text" id="global-search-input" placeholder="Szukaj czatów lub kanałów... (Ctrl+K)">
+            </div>
+
+            <!-- Sidebar Content Area -->
+            <div class="sidebar-content">
+                <!-- Section: Channels (Text & Voice) -->
+                <div class="list-section" id="section-channels">
+                    <div class="section-header">
+                        <span>KANAŁY TEKSTOWE I GŁOSOWE</span>
+                        <button class="btn-icon-sm" id="btn-add-channel" title="Stwórz nowy kanał">
+                            <i data-lucide="plus"></i>
+                        </button>
+                    </div>
+                    <div class="chat-list" id="channels-list">
+                        <!-- Dynamic Channels -->
+                    </div>
+                </div>
+
+                <!-- Section: Direct Messages -->
+                <div class="list-section" id="section-dms">
+                    <div class="section-header">
+                        <span>WIADOMOŚCI PRYWATNE (E2EE)</span>
+                        <button class="btn-icon-sm" id="btn-add-contact" title="Dodaj kontakt">
+                            <i data-lucide="user-plus"></i>
+                        </button>
+                    </div>
+                    <div class="chat-list" id="dms-list">
+                        <!-- Dynamic DMs -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Voice Connection Dock (Bottom Sidebar) -->
+            <div class="voice-status-dock hidden" id="voice-status-dock">
+                <div class="voice-dock-info">
+                    <span class="voice-dot-pulse"></span>
+                    <div>
+                        <span class="voice-dock-title" id="voice-dock-name">Głos połączony</span>
+                        <span class="voice-dock-channel" id="voice-dock-channel">Kanał Główny</span>
+                    </div>
+                </div>
+                <div class="voice-dock-actions">
+                    <button class="btn-dock-icon" id="btn-mute-mic" title="Wycisz mikrofon">
+                        <i data-lucide="mic"></i>
+                    </button>
+                    <button class="btn-dock-icon" id="btn-deafen" title="Wycisz dźwięk">
+                        <i data-lucide="headphones"></i>
+                    </button>
+                    <button class="btn-dock-icon btn-disconnect" id="btn-disconnect-voice" title="Rozłącz się">
+                        <i data-lucide="phone-off"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sidebar Footer -->
+            <div class="sidebar-footer">
+                <div class="connection-status">
+                    <span class="pulse-dot"></span>
+                    <span class="status-label">AES-256 E2EE Szyfrowanie</span>
+                </div>
+                <button class="btn-icon-sm" id="btn-toggle-sidebar-collapse" title="Zwiń panel">
+                    <i data-lucide="panel-left-close"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Chat Viewport -->
+        <main class="chat-viewport">
+            <!-- Chat Top Bar -->
+            <header class="chat-header" id="chat-header">
+                <button class="btn-icon mobile-menu-btn" id="btn-mobile-menu">
+                    <i data-lucide="menu"></i>
+                </button>
+                
+                <div class="chat-title-info">
+                    <div class="chat-avatar-box">
+                        <img id="active-chat-avatar" src="" alt="Avatar" class="chat-header-avatar hidden">
+                        <div id="active-chat-icon-box" class="chat-header-icon-box">
+                            <i data-lucide="hash" id="active-chat-icon"></i>
+                        </div>
+                    </div>
+                    <div class="chat-meta">
+                        <div class="chat-name-row">
+                            <h2 id="active-chat-name">Wybierz kanał lub serwer</h2>
+                            <span class="badge-tag e2ee-badge" id="active-chat-badge"><i data-lucide="lock"></i> E2EE Encrypted</span>
+                        </div>
+                        <p id="active-chat-desc" class="chat-description">Połączono z bezpiecznym szyfrowanym kanałem TopSep Desktop.</p>
+                    </div>
+                </div>
+
+                <!-- Header Actions -->
+                <div class="chat-header-actions">
+                    <!-- Voice Call Start Button -->
+                    <button class="btn-primary-voice" id="btn-start-voice-call" title="Rozpocznij rozmowę głosową">
+                        <i data-lucide="phone"></i>
+                        <span>Połączenie głosowe</span>
+                    </button>
+
+                    <div class="search-in-chat-box">
+                        <i data-lucide="search" class="icon-sm"></i>
+                        <input type="text" id="chat-search-input" placeholder="Szukaj w czacie...">
+                    </div>
+                    <button class="btn-icon" id="btn-toggle-pins" title="Przypięte wiadomości">
+                        <i data-lucide="pin"></i>
+                        <span class="badge-count hidden" id="pinned-count">0</span>
+                    </button>
+                    <button class="btn-icon" id="btn-toggle-info" title="Szczegóły konwersacji">
+                        <i data-lucide="sidebar"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Pinned Messages Banner Bar -->
+            <div class="pinned-banner hidden" id="pinned-banner">
+                <div class="pinned-banner-content">
+                    <i data-lucide="pin" class="pin-icon"></i>
+                    <div class="pinned-text-wrapper">
+                        <span class="pinned-label">Przypięta wiadomość:</span>
+                        <span class="pinned-text" id="pinned-banner-text">Brak przypiętych wiadomości</span>
+                    </div>
+                </div>
+                <button class="btn-icon-sm" id="btn-close-pinned-banner">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+
+            <!-- Messages Scroll Area -->
+            <div class="messages-container" id="messages-container">
+                <!-- Welcome Splash -->
+                <div class="chat-splash" id="chat-splash">
+                    <div class="splash-icon">
+                        <i data-lucide="lock"></i>
+                    </div>
+                    <h3>TopSep Desktop — Czysty & Szyfrowany Czatu</h3>
+                    <p>Wszystkie wiadomości są szyfrowane kluczem AES-256 (E2EE) i bezpiecznie przechowywane na Twoim komputerze.</p>
+                </div>
+
+                <div class="messages-list" id="messages-list">
+                    <!-- Dynamic Messages -->
+                </div>
+
+                <!-- Typing indicator -->
+                <div class="typing-indicator hidden" id="typing-indicator">
+                    <span class="typing-avatar-box">
+                        <img src="" id="typing-avatar" alt="Typing">
+                    </span>
+                    <div class="typing-dots">
+                        <span></span><span></span><span></span>
+                    </div>
+                    <span class="typing-text" id="typing-text">pisze wiadomość...</span>
+                </div>
+            </div>
+
+            <!-- Message Input Area -->
+            <footer class="chat-input-area">
+                <!-- Quick Reply Banner -->
+                <div class="input-context-banner hidden" id="input-context-banner">
+                    <div class="context-info">
+                        <i data-lucide="reply" id="context-icon"></i>
+                        <div>
+                            <span class="context-title" id="context-title">Odpowiedź na użytkownika</span>
+                            <p class="context-preview" id="context-preview">...</p>
+                        </div>
+                    </div>
+                    <button class="btn-icon-sm" id="btn-cancel-context">
+                        <i data-lucide="x"></i>
+                    </button>
+                </div>
+
+                <!-- Main Input Controls Bar -->
+                <div class="input-wrapper">
+                    <!-- Quick Attachments Menu -->
+                    <div class="input-actions-left">
+                        <button class="btn-icon" id="btn-attach" title="Dodaj plik / zdjęcie">
+                            <i data-lucide="paperclip"></i>
+                        </button>
+                        <input type="file" id="file-input" accept="image/*,.pdf,.doc,.txt" class="hidden">
+                        
+                        <button class="btn-icon" id="btn-share-location" title="Udostępnij lokalizację GPS / dystans">
+                            <i data-lucide="map-pin"></i>
+                        </button>
+
+                        <button class="btn-icon" id="btn-code-snippet" title="Wstaw kod źródłowy">
+                            <i data-lucide="code-2"></i>
+                        </button>
+                    </div>
+
+                    <!-- Textarea Message Input -->
+                    <div class="input-field-container">
+                        <textarea id="message-input" placeholder="Napisz zaszyfrowaną wiadomość... (Enter wysyła)" rows="1"></textarea>
+                    </div>
+
+                    <!-- Input Right Tools -->
+                    <div class="input-actions-right">
+                        <button class="btn-icon" id="btn-emoji" title="Wybierz emoji">
+                            <i data-lucide="smile"></i>
+                        </button>
+
+                        <button class="btn-icon btn-mic" id="btn-voice-rec" title="Nagraj wiadomość głosową">
+                            <i data-lucide="mic"></i>
+                        </button>
+
+                        <button class="btn-send" id="btn-send-message" title="Wyślij (Enter)">
+                            <i data-lucide="send"></i>
+                        </button>
+                    </div>
+                </div>
+            </footer>
+        </main>
+
+        <!-- Right Info Panel -->
+        <aside class="info-sidebar" id="info-sidebar">
+            <div class="info-header">
+                <h3>Szczegóły Kanału</h3>
+                <button class="btn-icon-sm" id="btn-close-info">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+
+            <div class="info-content" id="info-content">
+                <div class="info-profile">
+                    <img id="info-avatar" src="" alt="Avatar">
+                    <h3 id="info-name">Serwer / Kanał</h3>
+                    <span class="badge-tag e2ee-badge" id="info-status-badge">🔒 AES-256 Szyfrowany</span>
+                    <p id="info-description" class="info-desc-text">Opis kanału.</p>
+                </div>
+
+                <div class="info-section">
+                    <h4>BEZPIECZEŃSTWO & KRYPTOGRAFIA</h4>
+                    <div class="security-card">
+                        <div class="security-card-header">
+                            <i data-lucide="shield-check" style="color:var(--status-online)"></i>
+                            <span>Szyfrowanie End-to-End</span>
+                        </div>
+                        <p class="security-card-text">Wszystkie rozmowy są automatycznie szyfrowane przed zapisaniem w bazie.</p>
+                    </div>
+                </div>
+
+                <div class="info-section">
+                    <h4>STATYSTYKI</h4>
+                    <div class="info-stats-grid">
+                        <div class="stat-card">
+                            <span class="stat-value" id="stat-messages-count">0</span>
+                            <span class="stat-label">Wiadomości</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-value" id="stat-pinned-count">0</span>
+                            <span class="stat-label">Przypiętych</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-section">
+                    <h4>OPCJE KANAŁU</h4>
+                    <div class="info-action-list">
+                        <button class="info-action-btn" id="btn-clear-history">
+                            <i data-lucide="trash-2"></i> Wyczyść czat
+                        </button>
+                        <button class="info-action-btn" id="btn-export-chat">
+                            <i data-lucide="download"></i> Eksportuj zaszyfrowaną kopię
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Voice Call Active Screen Modal -->
+        <div class="modal-overlay hidden" id="voice-call-modal">
+            <div class="modal-card voice-call-card">
+                <div class="voice-call-header">
+                    <span class="pulse-dot"></span>
+                    <span id="voice-call-timer">Rozmowa głosowa w toku... 00:00</span>
+                </div>
+                <div class="voice-call-body">
+                    <div class="voice-avatar-ring speaking">
+                        <img src="" id="voice-call-avatar" alt="Caller Avatar">
+                    </div>
+                    <h3 id="voice-call-name">Rozmówca</h3>
+                    <p id="voice-call-status">Jakość połączenia: Doskonała (WebRTC HD)</p>
+                    
+                    <!-- Audio Waveform Visualizer Canvas -->
+                    <div class="voice-visualizer">
+                        <canvas id="voice-canvas" width="300" height="60"></canvas>
+                    </div>
+                </div>
+                <div class="voice-call-actions">
+                    <button class="btn-voice-ctrl" id="btn-modal-mute">
+                        <i data-lucide="mic"></i>
+                    </button>
+                    <button class="btn-voice-ctrl btn-danger-call" id="btn-modal-hangup">
+                        <i data-lucide="phone-off"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Server Modal -->
+        <div class="modal-overlay hidden" id="add-server-modal">
+            <div class="modal-card modal-sm">
+                <div class="modal-header">
+                    <h2><i data-lucide="server"></i> Stwórz Nowy Serwer</h2>
+                    <button class="btn-icon-sm" id="btn-close-add-server">
+                        <i data-lucide="x"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="new-server-name">Nazwa serwera</label>
+                        <input type="text" id="new-server-name" placeholder="np. Serwer Znajomych, Projekt TopSep">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-server-desc">Opis / Tematyka</label>
+                        <input type="text" id="new-server-desc" placeholder="np. Główna dyskusja i grupy głosowe">
+                    </div>
+                    <div class="modal-actions-row right">
+                        <button class="btn-secondary" id="btn-cancel-server">Anuluj</button>
+                        <button class="btn-primary" id="btn-save-server">Stwórz Serwer</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live P2P Connect Modal -->
+        <div class="modal-overlay hidden" id="p2p-modal">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h2><i data-lucide="radio" style="color:var(--accent-main)"></i> Połącz na żywo z Kolegą (P2P)</h2>
+                    <button class="btn-icon-sm" id="btn-close-p2p">
+                        <i data-lucide="x"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="p2p-status-box">
+                        <div class="p2p-badge" id="p2p-status-badge">
+                            <span class="pulse-dot"></span>
+                            <span id="p2p-status-text">Twój ID Połączenia jest gotowy!</span>
+                        </div>
+                        <p class="p2p-help">Przekaż ten kod swojemu koledze, aby połączyć się z nim bezpośrednio na żywo przez szyfrowany protokół WebRTC.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Twój Unikalny Kod Połączenia (Peer ID):</label>
+                        <div class="copy-input-row">
+                            <input type="text" id="my-peer-id" readonly value="Generowanie...">
+                            <button class="btn-secondary" id="btn-copy-peer-id">
+                                <i data-lucide="copy"></i> Kopiuj
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="peer-id-input">Wpisz Kod Połączenia Kolegi:</label>
+                        <div class="copy-input-row">
+                            <input type="text" id="peer-id-input" placeholder="np. topsep-7491-xyz">
+                            <button class="btn-primary" id="btn-connect-peer">
+                                <i data-lucide="zap"></i> Połącz na żywo
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal Overlay -->
+        <div class="modal-overlay hidden" id="settings-modal">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h2><i data-lucide="sliders"></i> Ustawienia TopSep Desktop</h2>
+                    <button class="btn-icon-sm" id="btn-close-settings">
+                        <i data-lucide="x"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <!-- Accent Theme Selector -->
+                    <div class="setting-item">
+                        <div class="setting-label">
+                            <h4>Kolor Akcentu UI</h4>
+                            <p>Wybierz odcień podświetlenia dla czystego motywu.</p>
+                        </div>
+                        <div class="theme-picker">
+                            <button class="theme-chip theme-cyan active" data-theme="theme-cyan" title="Neon Cyan"></button>
+                            <button class="theme-chip theme-purple" data-theme="theme-purple" title="Electric Purple"></button>
+                            <button class="theme-chip theme-emerald" data-theme="theme-emerald" title="Emerald Green"></button>
+                            <button class="theme-chip theme-amber" data-theme="theme-amber" title="Sunset Amber"></button>
+                            <button class="theme-chip theme-rose" data-theme="theme-rose" title="Rose Gold"></button>
+                        </div>
+                    </div>
+
+                    <!-- Sound Notifications -->
+                    <div class="setting-item">
+                        <div class="setting-label">
+                            <h4>Efekty Dźwiękowe</h4>
+                            <p>Odtwarzaj syntetyzowane odgłosy przy wiadomościach i połączeniach.</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="setting-sound" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <!-- Encryption Key Settings -->
+                    <div class="setting-item vertical">
+                        <div class="setting-label">
+                            <h4>Klucz Szyfrujący E2EE (AES-256)</h4>
+                            <p>Twoje wiadomości są domyślnie szyfrowane natywnym kluczem kryptograficznym.</p>
+                        </div>
+                        <div class="profile-edit-fields">
+                            <label>Master Encryption Key Fingerprint:</label>
+                            <input type="text" id="e2ee-key-display" readonly value="AES-256-GCM-SHA256-TOPSEP-SECURE">
+                        </div>
+                    </div>
+
+                    <!-- Profile Edit Section -->
+                    <div class="setting-item vertical">
+                        <div class="setting-label">
+                            <h4>Profil Użytkownika</h4>
+                        </div>
+                        <div class="profile-edit-fields">
+                            <label>Nazwa wyświetlana:</label>
+                            <input type="text" id="edit-user-name" value="Alex Vane">
+                            
+                            <label>Status / Opis:</label>
+                            <input type="text" id="edit-user-status" value="Dostępny | Szyfrowanie aktywne 🔒">
+                            
+                            <label>URL Avatara:</label>
+                            <input type="text" id="edit-user-avatar" value="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80">
+                        </div>
+                    </div>
+
+                    <!-- Data Backup & Reset -->
+                    <div class="setting-item vertical">
+                        <div class="setting-label">
+                            <h4>Zarządzanie Danymi</h4>
+                        </div>
+                        <div class="modal-actions-row">
+                            <button class="btn-secondary" id="btn-export-all-data">
+                                <i data-lucide="download"></i> Eksport Kopi Zapasowej
+                            </button>
+                            <button class="btn-danger" id="btn-reset-demo">
+                                <i data-lucide="rotate-ccw"></i> Wyczyść Wszystkie Dane
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Channel Modal -->
+        <div class="modal-overlay hidden" id="add-channel-modal">
+            <div class="modal-card modal-sm">
+                <div class="modal-header">
+                    <h2><i data-lucide="hash"></i> Stwórz Nowy Kanał</h2>
+                    <button class="btn-icon-sm" id="btn-close-add-channel">
+                        <i data-lucide="x"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="new-channel-type">Typ kanału</label>
+                        <select id="new-channel-type" class="custom-select">
+                            <option value="text">💬 Kanał Tekstowy</option>
+                            <option value="voice">🔊 Kanał Głosowy</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="new-channel-name">Nazwa kanału</label>
+                        <input type="text" id="new-channel-name" placeholder="np. dyskusje, rozmowy-glosowe">
+                    </div>
+                    <div class="modal-actions-row right">
+                        <button class="btn-secondary" id="btn-cancel-channel">Anuluj</button>
+                        <button class="btn-primary" id="btn-save-channel">Stwórz Kanał</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Contact Modal -->
+        <div class="modal-overlay hidden" id="add-contact-modal">
+            <div class="modal-card modal-sm">
+                <div class="modal-header">
+                    <h2><i data-lucide="user-plus"></i> Dodaj Nowy Kontakt</h2>
+                    <button class="btn-icon-sm" id="btn-close-add-contact">
+                        <i data-lucide="x"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="new-contact-name">Imię i nazwisko</label>
+                        <input type="text" id="new-contact-name" placeholder="np. Michał Kowalski">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-contact-role">Rola / Dystans</label>
+                        <input type="text" id="new-contact-role" placeholder="np. Programista • 📍 5.0 km ode mnie">
+                    </div>
+                    <div class="modal-actions-row right">
+                        <button class="btn-secondary" id="btn-cancel-contact">Anuluj</button>
+                        <button class="btn-primary" id="btn-save-contact">Dodaj Kontakt</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Code Snippet Modal -->
+        <div class="modal-overlay hidden" id="code-snippet-modal">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h2><i data-lucide="code-2"></i> Wstaw Fragment Kodu</h2>
+                    <button class="btn-icon-sm" id="btn-close-code-modal">
+                        <i data-lucide="x"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="code-lang">Język programowania</label>
+                        <select id="code-lang" class="custom-select">
+                            <option value="javascript">JavaScript / TypeScript</option>
+                            <option value="html">HTML5</option>
+                            <option value="css">CSS3</option>
+                            <option value="python">Python</option>
+                            <option value="json">JSON</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="code-content">Kod źródłowy</label>
+                        <textarea id="code-content" rows="10" placeholder="// Wklej tutaj swój kod..." class="code-textarea"></textarea>
+                    </div>
+                    <div class="modal-actions-row right">
+                        <button class="btn-secondary" id="btn-cancel-code">Anuluj</button>
+                        <button class="btn-primary" id="btn-insert-code">Wyślij Kod</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Emoji Picker Popover -->
+        <div class="emoji-popover hidden" id="emoji-popover">
+            <div class="emoji-header">
+                <input type="text" id="emoji-search" placeholder="Szukaj emoji...">
+            </div>
+            <div class="emoji-grid" id="emoji-grid">
+                <!-- Emoji populated via JS -->
+            </div>
+        </div>
+
+        <!-- Image Lightbox Modal -->
+        <div class="lightbox-overlay hidden" id="lightbox-modal">
+            <button class="lightbox-close" id="btn-close-lightbox"><i data-lucide="x"></i></button>
+            <img src="" id="lightbox-image" alt="Powiększenie zdjęcia">
+        </div>
+
+    </div>
+
+    <!-- Main JavaScript Application -->
+    <script src="js/app.js"></script>
+</body>
+</html>

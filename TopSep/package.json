@@ -1,0 +1,19 @@
+{
+  "name": "topsep-desktop",
+  "version": "2.5.0",
+  "description": "TopSep — Szyfrowany Komunikator Komputerowy z Serwerami i Rozmowami Głosowymi",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "keywords": [
+    "topsep",
+    "messenger",
+    "e2ee",
+    "encrypted",
+    "voice-chat",
+    "servers"
+  ],
+  "author": "TopSep Team",
+  "license": "MIT"
+}

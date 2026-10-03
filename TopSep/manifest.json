@@ -1,0 +1,21 @@
+{
+  "name": "TopSep Web Messenger",
+  "short_name": "TopSep",
+  "description": "Czysty, szyfrowany komunikator internetowy z serwerami i rozmowami głosowymi HD.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#080b11",
+  "theme_color": "#00f2fe",
+  "icons": [
+    {
+      "src": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=192&q=80",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=512&q=80",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}
