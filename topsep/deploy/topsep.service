@@ -1,0 +1,20 @@
+[Unit]
+Description=TopSep messenger
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/topsep
+EnvironmentFile=/etc/topsep.env
+Environment=PORT=8080
+Environment=TOPSEP_DB=/var/lib/topsep/topsep.db
+ExecStart=/usr/bin/node /opt/topsep/server.js
+Restart=always
+DynamicUser=yes
+StateDirectory=topsep
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

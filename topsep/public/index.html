@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TopSep</title>
+<style>
+body{margin:0;font-family:system-ui,sans-serif;background:#0f1420;color:#e8ecf5;height:100vh;display:flex}
+input,button{font:inherit;border-radius:8px;border:1px solid #243049;background:#171f2e;color:#e8ecf5;padding:9px}
+button{background:#5b8cff;border:0;cursor:pointer;color:#fff}
+#auth{margin:auto;display:none;gap:8px;width:300px}
+#app{display:none;flex:1;min-height:0}
+aside{width:260px;background:#171f2e;border-right:1px solid #243049;display:flex;flex-direction:column}
+#list{flex:1;overflow:auto}
+.it{padding:10px 14px;cursor:pointer}.it:hover,.it.on{background:#243049}
+main{flex:1;display:flex;flex-direction:column;min-width:0}
+header{padding:12px 16px;border-bottom:1px solid #243049;display:flex;gap:10px;align-items:center}
+header b{flex:1}
+#msgs{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:6px}
+.m{max-width:70%;padding:8px 12px;border-radius:12px;background:#171f2e;align-self:flex-start;white-space:pre-wrap;word-wrap:break-word}
+.m.me{background:#2e4a8a;align-self:flex-end}.m small{display:block;color:#8b96ab;font-size:11px}
+form{display:flex;gap:8px;padding:12px;border-top:1px solid #243049}form input{flex:1}
+#err{color:#ff7b7b;min-height:1em}
+#toast{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:#171f2e;padding:10px 16px;border-radius:10px;display:none;z-index:9}
+.ghost{background:none;border:1px solid #243049}
+</style></head><body>
+<div id="auth">
+  <h2 style="margin:0">TopSep 🔒</h2>
+  <input id="nick" placeholder="Nick" autocomplete="username">
+  <input id="pass" type="password" placeholder="Hasło (min. 6 znaków)" autocomplete="current-password">
+  <div id="err"></div>
+  <button id="login">Zaloguj</button>
+  <button id="reg" class="ghost">Załóż konto</button>
+</div>
+<div id="app"><aside>
+  <div style="padding:12px;display:flex;gap:6px;align-items:center"><b id="me" style="flex:1;overflow:hidden;text-overflow:ellipsis"></b>
+    <button onclick="newDm()" title="Nowy czat">+</button><button onclick="newGroup()" title="Nowa grupa">👥</button></div>
+  <div id="list"></div>
+  <div style="padding:10px"><button class="ghost" style="width:100%" onclick="logout()">Wyloguj</button></div>
+  </aside>
+  <main>
+    <header><b id="title">Wybierz czat</b>
+      <button id="callBtn" style="display:none" onclick="startCall()">📞 Rozmowa</button>
+      <button id="hangBtn" style="display:none;background:#d64545" onclick="hangup()">Rozłącz</button></header>
+    <div id="msgs"></div>
+    <form id="f"><input id="txt" autocomplete="off" placeholder="Wiadomość..."><button>Wyślij</button></form>
+  </main></div>
+<audio id="remote" autoplay></audio><div id="toast"></div>
+<script>
+const $ = id => document.getElementById(id);
+let ws, me = null, chats = [], cur = null, pc = null, local = null, peer = null, pending = [];
+const RTC = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+const ready = () => ws && ws.readyState === 1;
+
+function connect() {
+  ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
+  ws.onopen = () => {
+    const t = localStorage.getItem('topsep_token');
+    if (me) send({ type: 'sync' });
+    else if (t) send({ type: 'token', token: t });
+    else $('auth').style.display = 'grid';
+  };
+  ws.onmessage = e => handle(JSON.parse(e.data));
+  ws.onclose = () => setTimeout(connect, 2000);
+}
+const send = o => ready() && ws.send(JSON.stringify(o));
+function toast(t) { const x = $('toast'); x.textContent = t; x.style.display = 'block'; clearTimeout(x._t); x._t = setTimeout(() => x.style.display = 'none', 3500); }
+const chatName = c => c.type === 'dm' ? c.members.find(m => m !== me) : c.name;
+const el = (tag, text) => { const e = document.createElement(tag); e.textContent = text; return e; };
+
+$('login').onclick = () => auth('login');
+$('reg').onclick = () => auth('register');
+$('pass').onkeydown = e => { if (e.key === 'Enter') auth('login'); };
+function auth(type) {
+  if (!ready()) return $('err').textContent = 'Łączenie z serwerem...';
+  send({ type, nick: $('nick').value.trim().toLowerCase(), pass: $('pass').value });
+}
+function logout() { send({ type: 'logout' }); }
+
+function handle(d) {
+  switch (d.type) {
+    case 'auth':
+      if (!d.ok) { localStorage.removeItem('topsep_token'); $('err').textContent = d.error || ''; $('auth').style.display = 'grid'; return; }
+      me = d.nick; localStorage.setItem('topsep_token', d.token);
+      $('me').textContent = me; $('auth').style.display = 'none'; $('app').style.display = 'flex';
+      $('pass').value = '';
+      send({ type: 'sync' }); break;
+    case 'loggedout':
+      localStorage.removeItem('topsep_token'); location.reload(); break;
+    case 'chats':
+      chats = d.chats; renderList();
+      if (!cur && chats[0]) open(chats[0].id); break;
+    case 'history': if (d.chat === cur) { $('msgs').innerHTML = ''; d.msgs.forEach(addMsg); } break;
+    case 'msg':
+      if (!chats.find(c => c.id === d.msg.chat)) return send({ type: 'sync' });
+      if (d.msg.chat === cur) addMsg(d.msg);
+      else toast('💬 ' + d.msg.from + ': ' + d.msg.text.slice(0, 50));
+      break;
+    case 'signal': onSignal(d.from, d.data); break;
+    case 'error': toast(d.error); break;
+  }
+}
+
+function renderList() {
+  const L = $('list'); L.innerHTML = '';
+  chats.forEach(c => {
+    const d = document.createElement('div');
+    d.className = 'it' + (c.id === cur ? ' on' : '');
+    d.appendChild(el('b', chatName(c) || '?'));
+    d.onclick = () => open(c.id);
+    L.appendChild(d);
+  });
+}
+function open(id) {
+  cur = id;
+  const c = chats.find(x => x.id === id);
+  $('title').textContent = chatName(c);
+  $('callBtn').style.display = c.type === 'dm' ? '' : 'none';
+  $('msgs').innerHTML = '';
+  send({ type: 'history', chat: id });
+  renderList();
+}
+function addMsg(m) {
+  const box = $('msgs'), c = chats.find(x => x.id === cur);
+  const b = document.createElement('div');
+  b.className = 'm' + (m.from === me ? ' me' : '');
+  if (m.from !== me && c && c.type === 'group') b.appendChild(el('small', m.from));
+  b.appendChild(document.createTextNode(m.text));
+  box.appendChild(b); box.scrollTop = box.scrollHeight;
+}
+$('f').onsubmit = e => {
+  e.preventDefault();
+  const t = $('txt').value.trim();
+  if (!t || !cur) return;
+  send({ type: 'send', chat: cur, text: t }); $('txt').value = '';
+};
+function newDm() {
+  const n = prompt('Nick osoby:');
+  if (n) send({ type: 'dm', nick: n.trim().toLowerCase() });
+}
+function newGroup() {
+  const n = prompt('Nazwa grupy:'); if (!n) return;
+  const m = prompt('Nicki członków, po przecinku:') || '';
+  send({ type: 'group', name: n, members: m.split(',').map(s => s.trim()).filter(Boolean) });
+}
+
+// ---- Rozmowa głosowa (WebRTC, sygnalizacja przez serwer) ----
+async function makePc(to) {
+  peer = to; pc = new RTCPeerConnection(RTC);
+  pc.onicecandidate = e => e.candidate && send({ type: 'signal', to, data: { ice: e.candidate } });
+  pc.ontrack = e => $('remote').srcObject = e.streams[0];
+  pc.onconnectionstatechange = () => { if (['failed', 'disconnected', 'closed'].includes(pc?.connectionState)) cleanup(); };
+  local = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+  local.getTracks().forEach(t => pc.addTrack(t, local));
+  $('hangBtn').style.display = '';
+}
+async function startCall() {
+  if (pc) return toast('Już trwa rozmowa');
+  try {
+    await makePc(chatName(chats.find(x => x.id === cur)));
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    send({ type: 'signal', to: peer, data: { sdp: pc.localDescription } });
+    toast('Dzwonię do ' + peer + '...');
+  } catch (e) { toast('Nie udało się: ' + e.message); cleanup(); }
+}
+async function onSignal(from, data) {
+  if (data.sdp?.type === 'offer') {
+    if (pc && peer !== from) return send({ type: 'signal', to: from, data: { busy: true } });
+    if (!pc) {
+      if (!confirm(from + ' dzwoni. Odebrać?')) return send({ type: 'signal', to: from, data: { reject: true } });
+      await makePc(from);
+    }
+    await pc.setRemoteDescription(data.sdp);
+    for (const c of pending) await pc.addIceCandidate(c);
+    pending = [];
+    const ans = await pc.createAnswer();
+    await pc.setLocalDescription(ans);
+    send({ type: 'signal', to: from, data: { sdp: pc.localDescription } });
+  } else if (data.sdp?.type === 'answer' && pc) {
+    await pc.setRemoteDescription(data.sdp);
+  } else if (data.ice) {
+    if (pc && pc.remoteDescription) await pc.addIceCandidate(data.ice); else pending.push(data.ice);
+  } else if (data.reject) { toast(from + ' odrzucił połączenie'); cleanup(); }
+  else if (data.busy) { toast(from + ' jest zajęty'); cleanup(); }
+  else if (data.bye) { toast('Rozmowa zakończona'); cleanup(); }
+}
+function cleanup() {
+  if (pc) pc.close();
+  pc = null;
+  if (local) local.getTracks().forEach(t => t.stop());
+  local = null; peer = null; pending = [];
+  $('remote').srcObject = null; $('hangBtn').style.display = 'none';
+}
+function hangup() { if (peer) send({ type: 'signal', to: peer, data: { bye: true } }); cleanup(); }
+
+connect();
+</script></body></html>
